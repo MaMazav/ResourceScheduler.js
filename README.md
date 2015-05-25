@@ -2,9 +2,9 @@
 ResourceScheduler.js is a Javascript library for tasks scheduling. Useful for sue-cases of tasks that require a lot of resource like CPU, network bandwidth, etc.
 The library is espacially useful for tasks which can be prioritized.
 
-# Documentation and Demo
+# Documentation
 Can be found here:
-<TBD>
+http://mamazav.github.io/resourcescheduler.js
 
 # Compilation
 The library was compiled using Google Closure Compiler:
