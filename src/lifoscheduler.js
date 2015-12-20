@@ -38,6 +38,10 @@ var LifoScheduler = (function LifoSchedulerClosure() {
             }
         },
         
+        shouldYieldOrAbort: function shouldYieldOrAbort(jobContext) {
+            return false;
+        },
+        
         tryYield: function yieldResource(jobFunc, jobContext, resource) {
             return false;
         }
