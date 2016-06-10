@@ -23,19 +23,22 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         this._highPriorityToGuaranteeResource =
             options['highPriorityToGuaranteeResource'] || 0;
         
+        this._logCallIndentPrefix = '>';
         this._pendingJobsCount = 0;
         this._oldPendingJobsByPriority = [];
-        initializeNewPendingJobsLinkedList(this);
+        this._newPendingJobsLinkedList = new LinkedList();
         
         this._schedulesCounter = 0;
     }
     
     PriorityScheduler.prototype = {
         enqueueJob: function enqueueJob(jobFunc, jobContext, jobAbortedFunc) {
+            log(this, 'enqueueJob() start', +1);
             var priority = this._prioritizer['getPriority'](jobContext);
             
             if (priority < 0) {
                 jobAbortedFunc(jobContext);
+                log(this, 'enqueueJob() end: job aborted', -1);
                 return;
             }
             
@@ -45,7 +48,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
                 jobContext: jobContext
             };
             
-            var minPriority = getMinimalPriorityToSchedule(self);
+            var minPriority = getMinimalPriorityToSchedule(this);
             
             var resource = null;
             if (priority >= minPriority) {
@@ -54,45 +57,52 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             
             if (resource !== null) {
                 schedule(this, job, resource);
+                log(this, 'enqueueJob() end: job scheduled', -1);
                 return;
             }
             
             enqueueNewJob(this, job, priority);
-            ensurePendingJobsCount(self);
+            ensurePendingJobsCount(this);
+            log(this, 'enqueueJob() end: job pending', -1);
         },
         
         jobDone: function jobDone(resource, jobContext) {
             if (this._showLog) {
-                var message = '';
-                if (this._schedulerName !== undefined) {
-                    message = this._schedulerName + '\'s ';
-                }
-                
                 var priority = this._prioritizer['getPriority'](jobContext);
-                message += ' job done of priority ' + priority;
-                
-                console.log(message);
+                log(this, 'jobDone() start: job done of priority ' + priority, +1);
             }
             
             resourceFreed(this, resource);
-            ensurePendingJobsCount(self);
+            ensurePendingJobsCount(this);
+            log(this, 'jobDone() end', -1);
+        },
+        
+        shouldYieldOrAbort: function shouldYieldOrAbort(jobContext) {
+            log(this, 'shouldYieldOrAbort() start', +1);
+            var priority = this._prioritizer['getPriority'](jobContext);
+            var result = (priority < 0) || hasNewJobWithHigherPriority(this, priority);
+            log(this, 'shouldYieldOrAbort() end', -1);
+            return result;
         },
         
         tryYield: function tryYield(
             jobContinueFunc, jobContext, jobAbortedFunc, jobYieldedFunc, resource) {
             
+            log(this, 'tryYield() start', +1);
             var priority = this._prioritizer['getPriority'](jobContext);
             if (priority < 0) {
                 jobAbortedFunc(jobContext);
                 resourceFreed(this, resource);
+                log(this, 'tryYield() end: job aborted', -1);
                 return true;
             }
                 
             var higherPriorityJob = tryDequeueNewJobWithHigherPriority(
                 this, priority);
-            ensurePendingJobsCount(self);
+            ensurePendingJobsCount(this);
             
             if (higherPriorityJob === null) {
+                log(this, 'tryYield() end: job continues', -1);
                 return false;
             }
             
@@ -105,16 +115,51 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
                 };
                 
             enqueueNewJob(this, job, priority);
-            ensurePendingJobsCount(self);
+            ensurePendingJobsCount(this);
 
             schedule(this, higherPriorityJob, resource);
-            ensurePendingJobsCount(self);
+            ensurePendingJobsCount(this);
             
+            log(this, 'tryYield() end: job yielded', -1);
             return true;
         }
     }; // end prototype
     
+    function hasNewJobWithHigherPriority(self, lowPriority) {
+        var currentNode = self._newPendingJobsLinkedList.getFirstIterator();
+        
+        log(self, 'hasNewJobWithHigherPriority() start', +1);
+        
+        while (currentNode !== null) {
+            var nextNode = self._newPendingJobsLinkedList.getNextIterator(
+                currentNode);
+                
+            var job = self._newPendingJobsLinkedList.getValue(currentNode);
+            var priority = self._prioritizer['getPriority'](job.jobContext);
+            
+            if (priority < 0) {
+                extractJobFromLinkedList(self, currentNode);
+                --self._pendingJobsCount;
+                
+                job.jobAbortedFunc(job.jobContext);
+                currentNode = nextNode;
+                continue;
+            }
+            
+            if (priority > lowPriority) {
+                log(self, 'hasNewJobWithHigherPriority() end: returns true', -1);
+                return true;
+            }
+            
+            currentNode = nextNode;
+        }
+        
+        log(self, 'hasNewJobWithHigherPriority() end: returns false', -1);
+        return false;
+    }
+    
     function tryDequeueNewJobWithHigherPriority(self, lowPriority) {
+        log(self, 'tryDequeueNewJobWithHigherPriority() start', +1);
         var jobToScheduleNode = null;
         var highestPriorityFound = lowPriority;
         var countedPriorities = [];
@@ -165,14 +210,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         }
         
         if (self._showLog) {
-            var jobsListMessage = '';
-            var jobDequeuedMessage = '';
-            if (self._schedulerName !== undefined) {
-                jobsListMessage = self._schedulerName + '\'s ';
-                jobDequeuedMessage = self._schedulerName + '\'s ';
-            }
-            
-            jobsListMessage += 'Jobs list:';
+            var jobsListMessage = 'tryDequeueNewJobWithHigherPriority(): Jobs list:';
 
             for (var i = 0; i < countedPriorities.length; ++i) {
                 if (countedPriorities[i] !== undefined) {
@@ -180,20 +218,21 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
                 }
             }
             
-            console.log(jobsListMessage);
+            log(self, jobsListMessage);
 
             if (jobToSchedule !== null) {
-                jobDequeuedMessage += ' dequeued new job of priority ' + highestPriorityFound;
-                console.log(jobDequeuedMessage);
+                log(self, 'tryDequeueNewJobWithHigherPriority(): dequeued new job of priority ' + highestPriorityFound);
             }
         }
         
         ensurePendingJobsCount(self);
         
+        log(self, 'tryDequeueNewJobWithHigherPriority() end', -1);
         return jobToSchedule;
     }
     
     function tryGetFreeResource(self) {
+        log(self, 'tryGetFreeResource() start', +1);
         if (self._freeResourcesCount === 0) {
             return null;
         }
@@ -206,28 +245,24 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         
         ensurePendingJobsCount(self);
         
+        log(self, 'tryGetFreeResource() end', -1);
         return resource;
     }
     
     function enqueueNewJob(self, job, priority) {
+        log(self, 'enqueueNewJob() start', +1);
         ++self._pendingJobsCount;
         
         var firstIterator = self._newPendingJobsLinkedList.getFirstIterator();
         addJobToLinkedList(self, job, firstIterator);
         
         if (self._showLog) {
-            var message = '';
-            if (self._schedulerName !== undefined) {
-                message = self._schedulerName + '\'s ';
-            }
-            
-            message += ' enqueued job of priority ' + priority;
-            
-            console.log(message);
+            log(self, 'enqueueNewJob(): enqueued job of priority ' + priority);
         }
         
         if (self._newPendingJobsLinkedList.getCount() <= self._numNewJobs) {
             ensurePendingJobsCount(self);
+            log(self, 'enqueueNewJob() end: _newPendingJobsLinkedList is small enough', -1);
             return;
         }
         
@@ -235,14 +270,17 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         var oldJob = extractJobFromLinkedList(self, lastIterator);
         enqueueOldJob(self, oldJob);
         ensurePendingJobsCount(self);
+        log(self, 'enqueueNewJob() end: One job moved from new job list to old job list', -1);
     }
     
     function enqueueOldJob(self, job) {
+        log(self, 'enqueueOldJob() start', +1);
         var priority = self._prioritizer['getPriority'](job.jobContext);
         
         if (priority < 0) {
             --self._pendingJobsCount;
             job.jobAbortedFunc(job.jobContext);
+            log(self, 'enqueueOldJob() end: job aborted', -1);
             return;
         }
         
@@ -251,18 +289,21 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         }
         
         self._oldPendingJobsByPriority[priority].push(job);
+        log(self, 'enqueueOldJob() end: job enqueued to old job list', -1);
     }
     
     function rerankPriorities(self) {
+        log(self, 'rerankPriorities() start', +1);
         var originalOldsArray = self._oldPendingJobsByPriority;
         var originalNewsList = self._newPendingJobsLinkedList;
         
         if (originalOldsArray.length === 0) {
+            log(self, 'rerankPriorities() end: no need to rerank', -1);
             return;
         }
         
         self._oldPendingJobsByPriority = [];
-        initializeNewPendingJobsLinkedList(self);
+        self._newPendingJobsLinkedList = new LinkedList();
         
         for (var i = 0; i < originalOldsArray.length; ++i) {
             if (originalOldsArray[i] === undefined) {
@@ -282,11 +323,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             iterator = originalNewsList.getNextIterator(iterator);
         }
         
-        var message = '';
-        if (self._schedulerName !== undefined) {
-            message = self._schedulerName + '\'s ';
-        }
-        message += 'rerank: ';
+        var message = 'rerankPriorities(): ';
         
         for (var i = self._oldPendingJobsByPriority.length - 1; i >= 0; --i) {
             var highPriorityJobs = self._oldPendingJobsByPriority[i];
@@ -312,13 +349,15 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         }
         
         if (self._showLog) {
-            console.log(message);
+            log(self, message);
         }
         
         ensurePendingJobsCount(self);
+        log(self, 'rerankPriorities() end: rerank done', -1);
     }
     
     function resourceFreed(self, resource) {
+        log(self, 'resourceFreed() start', +1);
         ++self._freeResourcesCount;
         var minPriority = getMinimalPriorityToSchedule(self);
         --self._freeResourcesCount;
@@ -330,17 +369,19 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             schedule(self, job, resource);
             ensurePendingJobsCount(self);
             
+            log(self, 'resourceFreed() end: new job scheduled', -1);
             return;
         }
         
         var hasOldJobs =
             self._pendingJobsCount > self._newPendingJobsLinkedList.getCount();
             
-        if (hasOldJobs) {
+        if (!hasOldJobs) {
             self._freeResources.push(resource);
             ++self._freeResourcesCount;
             
             ensurePendingJobsCount(self);
+            log(self, 'resourceFreed() end: no job to schedule', -1);
             return;
         }
         
@@ -386,18 +427,12 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             
             ensurePendingJobsCount(self);
             
+            log(self, 'resourceFreed() end: no non-aborted job to schedule', -1);
             return;
         }
         
         if (self._showLog) {
-            var message = '';
-            if (self._schedulerName !== undefined) {
-                message = self._schedulerName + '\'s ';
-            }
-            
-            message += ' dequeued old job of priority ' + jobPriority;
-            
-            console.log(message);
+            log(self, 'resourceFreed(): dequeued old job of priority ' + jobPriority);
         }
         
         --self._pendingJobsCount;
@@ -405,9 +440,11 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         ensurePendingJobsCount(self);
         schedule(self, job, resource);
         ensurePendingJobsCount(self);
+        log(self, 'resourceFreed() end: job scheduled', -1);
     }
     
     function schedule(self, job, resource) {
+        log(self, 'schedule() start', +1);
         ++self._schedulesCounter;
         
         if (self._schedulesCounter >= self._numJobsBeforeRerankOldPriorities) {
@@ -416,34 +453,28 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         }
         
         if (self._showLog) {
-            var message = '';
-            if (self._schedulerName !== undefined) {
-                message = self._schedulerName + '\'s ';
-            }
-            
             var priority = self._prioritizer['getPriority'](job.jobContext);
-            message += ' scheduled job of priority ' + priority;
-            
-            console.log(message);
+            log(self, 'schedule(): scheduled job of priority ' + priority);
         }
         
         job.jobFunc(resource, job.jobContext);
-    }
-    
-    function initializeNewPendingJobsLinkedList(self) {
-        self._newPendingJobsLinkedList = new LinkedList();
+        log(self, 'schedule() end', -1);
     }
     
     function addJobToLinkedList(self, job, addBefore) {
+        log(self, 'addJobToLinkedList() start', +1);
         self._newPendingJobsLinkedList.add(job, addBefore);
         ensureNumberOfNodes(self);
+        log(self, 'addJobToLinkedList() end', -1);
     }
     
     function extractJobFromLinkedList(self, iterator) {
+        log(self, 'extractJobFromLinkedList() start', +1);
         var value = self._newPendingJobsLinkedList.getValue(iterator);
         self._newPendingJobsLinkedList.remove(iterator);
         ensureNumberOfNodes(self);
         
+        log(self, 'extractJobFromLinkedList() end', -1);
         return value;
     }
     
@@ -452,7 +483,8 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             return;
         }
         
-        var iterator = self._newPendingJobsLinkedList.getIterator();
+        log(self, 'ensureNumberOfNodes() start', +1);
+        var iterator = self._newPendingJobsLinkedList.getFirstIterator();
         var expectedCount = 0;
         while (iterator !== null) {
             ++expectedCount;
@@ -462,6 +494,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         if (expectedCount !== self._newPendingJobsLinkedList.getCount()) {
             throw 'Unexpected count of new jobs';
         }
+        log(self, 'ensureNumberOfNodes() end', -1);
     }
     
     function ensurePendingJobsCount(self) {
@@ -469,6 +502,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             return;
         }
         
+        log(self, 'ensurePendingJobsCount() start', +1);
         var oldJobsCount = 0;
         for (var i = 0; i < self._oldPendingJobsByPriority.length; ++i) {
             var jobs = self._oldPendingJobsByPriority[i];
@@ -483,14 +517,38 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         if (expectedCount !== self._pendingJobsCount) {
             throw 'Unexpected count of jobs';
         }
+        log(self, 'ensurePendingJobsCount() end', -1);
     }
     
     function getMinimalPriorityToSchedule(self) {
+        log(self, 'getMinimalPriorityToSchedule() start', +1);
         if (self._freeResourcesCount <= self._resourcesGuaranteedForHighPriority) {
+            log(self, 'getMinimalPriorityToSchedule() end: guarantee resource for high priority is needed', -1);
             return self._highPriorityToGuaranteeResources;
         }
         
+        log(self, 'getMinimalPriorityToSchedule() end: enough resources, no need to guarantee resource for high priority', -1);
         return 0;
+    }
+    
+    function log(self, msg, addIndent) {
+        if (!self._showLog) {
+            return;
+        }
+        
+        if (addIndent === -1) {
+            self._logCallIndentPrefix = self._logCallIndentPrefix.substr(1);
+        }
+        
+        if (self._schedulerName !== undefined) {
+            console.log(self._logCallIndentPrefix + 'PriorityScheduler ' + self._schedulerName + ': ' + msg);
+        } else {
+            console.log(self._logCallIndentPrefix + 'PriorityScheduler: ' + msg);
+        }
+    
+        if (addIndent === 1) {
+            self._logCallIndentPrefix += '>';
+        }
     }
     
     return PriorityScheduler;
