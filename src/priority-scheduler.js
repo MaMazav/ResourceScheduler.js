@@ -31,99 +31,97 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         this._schedulesCounter = 0;
     }
     
-    PriorityScheduler.prototype = {
-        enqueueJob: function enqueueJob(jobFunc, jobContext, jobAbortedFunc) {
-            log(this, 'enqueueJob() start', +1);
-            var priority = this._prioritizer['getPriority'](jobContext);
-            
-            if (priority < 0) {
-                jobAbortedFunc(jobContext);
-                log(this, 'enqueueJob() end: job aborted', -1);
-                return;
-            }
-            
-            var job = {
-                jobFunc: jobFunc,
-                jobAbortedFunc: jobAbortedFunc,
-                jobContext: jobContext
-            };
-            
-            var minPriority = getMinimalPriorityToSchedule(this);
-            
-            var resource = null;
-            if (priority >= minPriority) {
-                resource = tryGetFreeResource(this);
-            }
-            
-            if (resource !== null) {
-                schedule(this, job, resource);
-                log(this, 'enqueueJob() end: job scheduled', -1);
-                return;
-            }
-            
-            enqueueNewJob(this, job, priority);
-            ensurePendingJobsCount(this);
-            log(this, 'enqueueJob() end: job pending', -1);
-        },
-        
-        jobDone: function jobDone(resource, jobContext) {
-            if (this._showLog) {
-                var priority = this._prioritizer['getPriority'](jobContext);
-                log(this, 'jobDone() start: job done of priority ' + priority, +1);
-            }
-            
-            resourceFreed(this, resource);
-            ensurePendingJobsCount(this);
-            log(this, 'jobDone() end', -1);
-        },
-        
-        shouldYieldOrAbort: function shouldYieldOrAbort(jobContext) {
-            log(this, 'shouldYieldOrAbort() start', +1);
-            var priority = this._prioritizer['getPriority'](jobContext);
-            var result = (priority < 0) || hasNewJobWithHigherPriority(this, priority);
-            log(this, 'shouldYieldOrAbort() end', -1);
-            return result;
-        },
-        
-        tryYield: function tryYield(
-            jobContinueFunc, jobContext, jobAbortedFunc, jobYieldedFunc, resource) {
-            
-            log(this, 'tryYield() start', +1);
-            var priority = this._prioritizer['getPriority'](jobContext);
-            if (priority < 0) {
-                jobAbortedFunc(jobContext);
-                resourceFreed(this, resource);
-                log(this, 'tryYield() end: job aborted', -1);
-                return true;
-            }
-                
-            var higherPriorityJob = tryDequeueNewJobWithHigherPriority(
-                this, priority);
-            ensurePendingJobsCount(this);
-            
-            if (higherPriorityJob === null) {
-                log(this, 'tryYield() end: job continues', -1);
-                return false;
-            }
-            
-            jobYieldedFunc(jobContext);
+    PriorityScheduler.prototype.enqueueJob = function enqueueJob(jobFunc, jobContext, jobAbortedFunc) {
+		log(this, 'enqueueJob() start', +1);
+		var priority = this._prioritizer['getPriority'](jobContext);
+		
+		if (priority < 0) {
+			jobAbortedFunc(jobContext);
+			log(this, 'enqueueJob() end: job aborted', -1);
+			return;
+		}
+		
+		var job = {
+			jobFunc: jobFunc,
+			jobAbortedFunc: jobAbortedFunc,
+			jobContext: jobContext
+		};
+		
+		var minPriority = getMinimalPriorityToSchedule(this);
+		
+		var resource = null;
+		if (priority >= minPriority) {
+			resource = tryGetFreeResource(this);
+		}
+		
+		if (resource !== null) {
+			schedule(this, job, resource);
+			log(this, 'enqueueJob() end: job scheduled', -1);
+			return;
+		}
+		
+		enqueueNewJob(this, job, priority);
+		ensurePendingJobsCount(this);
+		log(this, 'enqueueJob() end: job pending', -1);
+	};
 
-            var job = {
-                jobFunc: jobContinueFunc,
-                jobAbortedFunc: jobAbortedFunc,
-                jobContext: jobContext
-                };
-                
-            enqueueNewJob(this, job, priority);
-            ensurePendingJobsCount(this);
+	function jobDoneInternal(self, resource, jobContext) {
+		if (self._showLog) {
+			var priority = self._prioritizer['getPriority'](jobContext);
+			log(self, 'jobDone() start: job done of priority ' + priority, +1);
+		}
+		
+		resourceFreed(self, resource);
+		ensurePendingJobsCount(self);
+		log(self, 'jobDone() end', -1);
+	}
+	
+	function shouldYieldOrAbortInternal(self, jobContext) {
+		log(self, 'shouldYieldOrAbort() start', +1);
+		var priority = self._prioritizer['getPriority'](jobContext);
+		var result = (priority < 0) || hasNewJobWithHigherPriority(self, priority);
+		log(self, 'shouldYieldOrAbort() end', -1);
+		return result;
+	}
+	
+	function tryYieldInternal(
+		self, jobContinueFunc, jobContext, jobAbortedFunc, jobYieldedFunc, resource) {
+		
+		log(self, 'tryYield() start', +1);
+		var priority = self._prioritizer['getPriority'](jobContext);
+		if (priority < 0) {
+			jobAbortedFunc(jobContext);
+			resourceFreed(self, resource);
+			log(self, 'tryYield() end: job aborted', -1);
+			return true;
+		}
+			
+		var higherPriorityJob = tryDequeueNewJobWithHigherPriority(
+			self, priority);
+		ensurePendingJobsCount(self);
+		
+		if (higherPriorityJob === null) {
+			log(self, 'tryYield() end: job continues', -1);
+			return false;
+		}
+		
+		jobYieldedFunc(jobContext);
 
-            schedule(this, higherPriorityJob, resource);
-            ensurePendingJobsCount(this);
-            
-            log(this, 'tryYield() end: job yielded', -1);
-            return true;
-        }
-    }; // end prototype
+		var job = {
+			jobFunc: jobContinueFunc,
+			jobAbortedFunc: jobAbortedFunc,
+			jobContext: jobContext
+			};
+			
+		enqueueNewJob(self, job, priority);
+		ensurePendingJobsCount(self);
+
+		schedule(self, higherPriorityJob, resource);
+		ensurePendingJobsCount(self);
+		
+		log(self, 'tryYield() end: job yielded', -1);
+		return true;
+	}
     
     function hasNewJobWithHigherPriority(self, lowPriority) {
         var currentNode = self._newPendingJobsLinkedList.getFirstIterator();
@@ -456,8 +454,10 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             var priority = self._prioritizer['getPriority'](job.jobContext);
             log(self, 'schedule(): scheduled job of priority ' + priority);
         }
+		
+		var callbacks = new PrioritySchedulerCallbacks(self, resource, job.jobContext);
         
-        job.jobFunc(resource, job.jobContext);
+        job.jobFunc(resource, job.jobContext, callbacks);
         log(self, 'schedule() end', -1);
     }
     
@@ -551,5 +551,46 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         }
     }
     
-    return PriorityScheduler;
+	function PrioritySchedulerCallbacks(scheduler, resource, context) {
+		this._isValid = true;
+		this._scheduler = scheduler;
+		this._resource = resource;
+		this._context = context;
+	}
+	
+	PrioritySchedulerCallbacks.prototype._checkValidity = function checkValidity() {
+		if (!this._isValid) {
+			throw 'ResourceScheduler error: Already terminated job';
+		}
+	};
+	
+	PrioritySchedulerCallbacks.prototype._clearValidity = function() {
+		this._isValid = false;
+		this._resource = null;
+		this._context = null;
+		this._scheduler = null;
+	};
+	
+	PrioritySchedulerCallbacks.prototype['jobDone'] = function jobDone() {
+		this._checkValidity();
+		jobDoneInternal(this._scheduler, this._resource, this._context);
+		this._clearValidity();
+	};
+	
+	PrioritySchedulerCallbacks.prototype['shouldYieldOrAbort'] = function() {
+		this._checkValidity();
+		return shouldYieldOrAbortInternal(this._scheduler, this._context);
+	};
+	
+	PrioritySchedulerCallbacks.prototype['tryYield'] = function tryYield(jobContinueFunc, jobAbortedFunc, jobYieldedFunc) {
+		this._checkValidity();
+		var isYielded = tryYieldInternal(
+			this._scheduler, jobContinueFunc, this._context, jobAbortedFunc, jobYieldedFunc, this._resource);
+		if (isYielded) {
+			this._clearValidity();
+		}
+		return isYielded;
+	};
+
+	return PriorityScheduler;
 })();
