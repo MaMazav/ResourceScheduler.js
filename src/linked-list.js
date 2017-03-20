@@ -2,6 +2,10 @@
 
 var LinkedList = (function LinkedListClosure() {
     function LinkedList() {
+		this.clear();
+	}
+	
+	LinkedList.prototype.clear = function clear() {
         this._first = { _prev: null, _parent: this };
         this._last = { _next: null, _parent: this };
         this._count = 0;
@@ -42,7 +46,7 @@ var LinkedList = (function LinkedListClosure() {
         iterator._parent = null;
     };
     
-    LinkedList.prototype.getValue = function getValue(iterator) {
+    LinkedList.prototype.getFromIterator = function getFromIterator(iterator) {
         this._validateIteratorOfThis(iterator);
         
         return iterator._value;

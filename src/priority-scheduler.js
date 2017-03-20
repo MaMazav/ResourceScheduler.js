@@ -132,7 +132,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             var nextNode = self._newPendingJobsLinkedList.getNextIterator(
                 currentNode);
                 
-            var job = self._newPendingJobsLinkedList.getValue(currentNode);
+            var job = self._newPendingJobsLinkedList.getFromIterator(currentNode);
             var priority = self._prioritizer['getPriority'](job.jobContext);
             
             if (priority < 0) {
@@ -168,7 +168,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             var nextNode = self._newPendingJobsLinkedList.getNextIterator(
                 currentNode);
                 
-            var job = self._newPendingJobsLinkedList.getValue(currentNode);
+            var job = self._newPendingJobsLinkedList.getFromIterator(currentNode);
             var priority = self._prioritizer['getPriority'](job.jobContext);
             
             if (priority < 0) {
@@ -315,7 +315,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         
         var iterator = originalNewsList.getFirstIterator();
         while (iterator !== null) {
-            var value = originalNewsList.getValue(iterator);
+            var value = originalNewsList.getFromIterator(iterator);
             enqueueOldJob(self, value);
             
             iterator = originalNewsList.getNextIterator(iterator);
@@ -470,7 +470,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
     
     function extractJobFromLinkedList(self, iterator) {
         log(self, 'extractJobFromLinkedList() start', +1);
-        var value = self._newPendingJobsLinkedList.getValue(iterator);
+        var value = self._newPendingJobsLinkedList.getFromIterator(iterator);
         self._newPendingJobsLinkedList.remove(iterator);
         ensureNumberOfNodes(self);
         
