@@ -1,5 +1,7 @@
 'use strict';
 
+var LinkedList = require('linked-list');
+
 var PriorityScheduler = (function PrioritySchedulerClosure() {
     function PriorityScheduler(
         createResource, jobsLimit, prioritizer, options) {
@@ -9,19 +11,19 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         this._jobsLimit = jobsLimit;
         this._prioritizer = prioritizer;
         
-        this._showLog = options['showLog'];
-        this._schedulerName = options['schedulerName'];
-        this._numNewJobs = options['numNewJobs'] || 20;
+        this._showLog = options.showLog;
+        this._schedulerName = options.schedulerName;
+        this._numNewJobs = options.numNewJobs || 20;
         this._numJobsBeforeRerankOldPriorities =
-            options['numJobsBeforeRerankOldPriorities'] || 20;
+            options.numJobsBeforeRerankOldPriorities || 20;
             
         this._freeResourcesCount = this._jobsLimit;
         this._freeResources = new Array(this._jobsLimit);
         
         this._resourcesGuaranteedForHighPriority =
-            options['resourcesGuaranteedForHighPriority'] || 0;
+            options.resourcesGuaranteedForHighPriority || 0;
         this._highPriorityToGuaranteeResource =
-            options['highPriorityToGuaranteeResource'] || 0;
+            options.highPriorityToGuaranteeResource || 0;
         
         this._logCallIndentPrefix = '>';
         this._pendingJobsCount = 0;
@@ -33,7 +35,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
     
     PriorityScheduler.prototype.enqueueJob = function enqueueJob(jobFunc, jobContext, jobAbortedFunc) {
 		log(this, 'enqueueJob() start', +1);
-		var priority = this._prioritizer['getPriority'](jobContext);
+		var priority = this._prioritizer.getPriority(jobContext);
 		
 		if (priority < 0) {
 			jobAbortedFunc(jobContext);
@@ -67,7 +69,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
 
 	function jobDoneInternal(self, resource, jobContext) {
 		if (self._showLog) {
-			var priority = self._prioritizer['getPriority'](jobContext);
+			var priority = self._prioritizer.getPriority(jobContext);
 			log(self, 'jobDone() start: job done of priority ' + priority, +1);
 		}
 		
@@ -78,7 +80,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
 	
 	function shouldYieldOrAbortInternal(self, jobContext) {
 		log(self, 'shouldYieldOrAbort() start', +1);
-		var priority = self._prioritizer['getPriority'](jobContext);
+		var priority = self._prioritizer.getPriority(jobContext);
 		var result = (priority < 0) || hasNewJobWithHigherPriority(self, priority);
 		log(self, 'shouldYieldOrAbort() end', -1);
 		return result;
@@ -88,7 +90,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
 		self, jobContinueFunc, jobContext, jobAbortedFunc, jobYieldedFunc, resource) {
 		
 		log(self, 'tryYield() start', +1);
-		var priority = self._prioritizer['getPriority'](jobContext);
+		var priority = self._prioritizer.getPriority(jobContext);
 		if (priority < 0) {
 			jobAbortedFunc(jobContext);
 			resourceFreed(self, resource);
@@ -133,7 +135,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
                 currentNode);
                 
             var job = self._newPendingJobsLinkedList.getFromIterator(currentNode);
-            var priority = self._prioritizer['getPriority'](job.jobContext);
+            var priority = self._prioritizer.getPriority(job.jobContext);
             
             if (priority < 0) {
                 extractJobFromLinkedList(self, currentNode);
@@ -169,7 +171,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
                 currentNode);
                 
             var job = self._newPendingJobsLinkedList.getFromIterator(currentNode);
-            var priority = self._prioritizer['getPriority'](job.jobContext);
+            var priority = self._prioritizer.getPriority(job.jobContext);
             
             if (priority < 0) {
                 extractJobFromLinkedList(self, currentNode);
@@ -273,7 +275,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
     
     function enqueueOldJob(self, job) {
         log(self, 'enqueueOldJob() start', +1);
-        var priority = self._prioritizer['getPriority'](job.jobContext);
+        var priority = self._prioritizer.getPriority(job.jobContext);
         
         if (priority < 0) {
             --self._pendingJobsCount;
@@ -323,14 +325,14 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         
         var message = 'rerankPriorities(): ';
         
-        for (var i = self._oldPendingJobsByPriority.length - 1; i >= 0; --i) {
-            var highPriorityJobs = self._oldPendingJobsByPriority[i];
+        for (var k = self._oldPendingJobsByPriority.length - 1; k >= 0; --k) {
+            var highPriorityJobs = self._oldPendingJobsByPriority[k];
             if (highPriorityJobs === undefined) {
                 continue;
             }
             
             if (self._showLog) {
-                message += highPriorityJobs.length + ' jobs in priority ' + i + ';';
+                message += highPriorityJobs.length + ' jobs in priority ' + k + ';';
             }
             
             while (highPriorityJobs.length > 0 &&
@@ -394,7 +396,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
             
             for (var i = jobs.length - 1; i >= 0; --i) {
                 job = jobs[i];
-                jobPriority = self._prioritizer['getPriority'](job.jobContext);
+                jobPriority = self._prioritizer.getPriority(job.jobContext);
                 if (jobPriority >= priority) {
                     jobs.length = i;
                     break;
@@ -451,7 +453,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         }
         
         if (self._showLog) {
-            var priority = self._prioritizer['getPriority'](job.jobContext);
+            var priority = self._prioritizer.getPriority(job.jobContext);
             log(self, 'schedule(): scheduled job of priority ' + priority);
         }
 		
@@ -541,8 +543,10 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         }
         
         if (self._schedulerName !== undefined) {
+			/* global console: false */
             console.log(self._logCallIndentPrefix + 'PriorityScheduler ' + self._schedulerName + ': ' + msg);
         } else {
+			/* global console: false */
             console.log(self._logCallIndentPrefix + 'PriorityScheduler: ' + msg);
         }
     
@@ -571,18 +575,18 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
 		this._scheduler = null;
 	};
 	
-	PrioritySchedulerCallbacks.prototype['jobDone'] = function jobDone() {
+	PrioritySchedulerCallbacks.prototype.jobDone = function jobDone() {
 		this._checkValidity();
 		jobDoneInternal(this._scheduler, this._resource, this._context);
 		this._clearValidity();
 	};
 	
-	PrioritySchedulerCallbacks.prototype['shouldYieldOrAbort'] = function() {
+	PrioritySchedulerCallbacks.prototype.shouldYieldOrAbort = function() {
 		this._checkValidity();
 		return shouldYieldOrAbortInternal(this._scheduler, this._context);
 	};
 	
-	PrioritySchedulerCallbacks.prototype['tryYield'] = function tryYield(jobContinueFunc, jobAbortedFunc, jobYieldedFunc) {
+	PrioritySchedulerCallbacks.prototype.tryYield = function tryYield(jobContinueFunc, jobAbortedFunc, jobYieldedFunc) {
 		this._checkValidity();
 		var isYielded = tryYieldInternal(
 			this._scheduler, jobContinueFunc, this._context, jobAbortedFunc, jobYieldedFunc, this._resource);
@@ -594,3 +598,5 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
 
 	return PriorityScheduler;
 })();
+
+module.exports = PriorityScheduler;

@@ -37,7 +37,7 @@ var LifoScheduler = (function LifoSchedulerClosure() {
 		this._resource = resource;
 	}
 	
-	LifoSchedulerCallbacks.prototype['jobDone'] = function jobDone() {
+	LifoSchedulerCallbacks.prototype.jobDone = function jobDone() {
 		if (this._scheduler._pendingJobs.length > 0) {
 			var nextJob = this._scheduler._pendingJobs.pop();
 			this._scheduler._schedule(nextJob.jobFunc, this._resource, nextJob.jobContext);
@@ -47,13 +47,15 @@ var LifoScheduler = (function LifoSchedulerClosure() {
 		}
 	};
 	
-	LifoSchedulerCallbacks.prototype['shouldYieldOrAbort'] = function shouldYieldOrAbort() {
+	LifoSchedulerCallbacks.prototype.shouldYieldOrAbort = function shouldYieldOrAbort() {
 		return false;
 	};
 	
-	LifoSchedulerCallbacks.prototype['tryYield'] = function tryYield() {
+	LifoSchedulerCallbacks.prototype.tryYield = function tryYield() {
 		return false;
 	};
     
     return LifoScheduler;
 })();
+
+module.exports = LifoScheduler;

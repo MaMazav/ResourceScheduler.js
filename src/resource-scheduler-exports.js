@@ -1,9 +1,4 @@
 'use strict';
 
-self['ResourceScheduler'] = {};
-self['ResourceScheduler']['PriorityScheduler'] = PriorityScheduler;
-self['ResourceScheduler']['LifoScheduler'] = LifoScheduler;
-
-PriorityScheduler.prototype['enqueueJob'] = PriorityScheduler.prototype.enqueueJob;
-
-LifoScheduler.prototype['enqueueJob'] = LifoScheduler.prototype.enqueueJob;
+module.exports.PriorityScheduler = require('priority-scheduler');
+module.exports.LifoScheduler = require('lifo-scheduler');

@@ -12,7 +12,7 @@ var LinkedList = (function LinkedListClosure() {
         
         this._last._prev = this._first;
         this._first._next = this._last;
-    }
+    };
     
     LinkedList.prototype.add = function add(value, addBefore) {
         if (addBefore === null || addBefore === undefined) {
@@ -92,7 +92,9 @@ var LinkedList = (function LinkedListClosure() {
         if (iterator._parent !== this) {
             throw 'iterator must be of the current LinkedList';
         }
-    }
+    };
     
     return LinkedList;
 })();
+
+module.exports = LinkedList;
