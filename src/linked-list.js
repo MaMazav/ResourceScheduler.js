@@ -2,10 +2,10 @@
 
 var LinkedList = (function LinkedListClosure() {
     function LinkedList() {
-		this.clear();
-	}
-	
-	LinkedList.prototype.clear = function clear() {
+        this.clear();
+    }
+    
+    LinkedList.prototype.clear = function clear() {
         this._first = { _prev: null, _parent: this };
         this._last = { _next: null, _parent: this };
         this._count = 0;
