@@ -66,6 +66,13 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         ensurePendingJobsCount(this);
         log(this, 'enqueueJob() end: job pending', -1);
     };
+    
+    PriorityScheduler.prototype.shouldAbort = function shouldAbort(jobContext) {
+        log(this, 'enqueueJob() start', +1);
+        var priority = this._prioritizer.getPriority(jobContext);
+        log(this, 'enqueueJob() end', -1);
+        return priority < 0;
+    };
 
     function jobDoneInternal(self, resource, jobContext) {
         if (self._showLog) {
@@ -362,7 +369,7 @@ var PriorityScheduler = (function PrioritySchedulerClosure() {
         var minPriority = getMinimalPriorityToSchedule(self);
         --self._freeResourcesCount;
         
-        var job = tryDequeueNewJobWithHigherPriority(self, minPriority);
+        var job = tryDequeueNewJobWithHigherPriority(self, minPriority - 1);
 
         if (job !== null) {
             ensurePendingJobsCount(self);

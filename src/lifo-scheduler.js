@@ -27,6 +27,10 @@ var LifoScheduler = (function LifoSchedulerClosure() {
         }
     };
     
+    LifoScheduler.prototype.shouldAbort = function shouldAbort(jobContext) {
+        return false;
+    };
+    
     LifoScheduler.prototype._schedule = function schedule(jobFunc, resource, jobContext) {
         var callbacks = new LifoSchedulerCallbacks(this, resource);
         jobFunc(resource, jobContext, callbacks);
